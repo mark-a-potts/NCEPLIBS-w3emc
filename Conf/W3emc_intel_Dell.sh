@@ -20,6 +20,11 @@
  export I4R4="-integer-size 32 -real-size 32"
  export I4R8="-integer-size 32 -real-size 64"
  export I8R8="-integer-size 64 -real-size 64"
+ export NETCDFPATH="/usrx/local/prod/packages/ips/18.0.1/netcdf/4.5.0"
+ export NETCDF_LIB="-L${NETCDFPATH}/lib -lnetcdf -lnetcdff"
+ export NETCDF_INC="-I${NETCDFPATH}/include"
+ export FCOMP=mpif90
+ export FFLAGS="-O3" 
 
  export CPPDEFS=""
  export CFLAGSDEFS="-DUNDERSCORE -DLINUX"

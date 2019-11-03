@@ -28,6 +28,11 @@
  export I4R4="-integer-size 32 -real-size 32"
  export I4R8="-integer-size 32 -real-size 64"
  export I8R8="-integer-size 64 -real-size 64"
+ export NETCDFPATH="/apps/netcdf/4.3.0-intel"
+ export NETCDF_LIB="-L${NETCDFPATH}/lib -lnetcdf -lnetcdff"
+ export NETCDF_INC="-I${NETCDFPATH}/include"
+ export FCOMP=ifort
+ export FFLAGS="-O3"
 
  export CPPDEFS=""
  export CFLAGSDEFS="-DUNDERSCORE -DLINUX"

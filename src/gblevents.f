@@ -263,6 +263,8 @@ C     input. Updated comments and docblock to account for new NEMSIO
 C     input.
 C 2017-02-22 D. Keyser -- Further changes to subr. GBLEVN12 to remove
 C     array and logic references to multiple input files.
+C 2019-10-31 Hang Lei -- Add GBLEVN13 to process netcdf input.
+C     
 C
 C USAGE:    CALL GBLEVENTS(IDATEP,IUNITF,IUNITE,IUNITP,IUNITS,SUBSET,
 C          $               NEWTYP)
@@ -336,6 +338,7 @@ C
 C   SUBPROGRAMS CALLED:
 C     UNIQUE:      GBLEVN02  GBLEVN03  GBLEVN04  GBLEVN06  OEFG01
 C                  GBLEVN08  GBLEVN10  GBLEVN11  GBLEVN11D GBLEVN12
+C                  GBLEVN13
 C                  GETLATS
 C                  MODULES: GBLEVN_MODULE SIGIO_MODULE     SIGIO_R_MODULE
 C                           NEMSIO_MODULE NEMSIO_OPENCLOSE NEMSIO_READ
@@ -695,6 +698,10 @@ C  ------------------------------------------------------------------
                   CALL NEMSIO_CLOSE(GFILE1,IRET=IRET)
                   print *,' ===> GFS FCST/ANAL INPUT IS NEMSIO'
                   CALL GBLEVN12(IUNITF,IDATEP,IM,JM,IDRT)
+               ELSE
+                  CALL NEMSIO_CLOSE(GFILE1,IRET=IRET)
+                  print *,' ===> TRY GFS FCST/ANAL INPUT AS NETCDF'
+                  CALL GBLEVN13(IUNITF,IDATEP,IM,JM,IDRT)
                ENDIF
             ENDIF 
          ENDIF
@@ -2913,13 +2920,13 @@ C***********************************************************************
       return
       end
 !---------------------------------------------------------
-      SUBROUTINE GBLEVN12(IUNITF,IDATEP,IM,JM,IDRT) 
+      SUBROUTINE GBLEVN12(IUNITF,IDATEP,IM,JM,IDRT)
 !---------------------------------------------------------
 !--INITIALLY DEVELOPED BY HANG LEI BASED ON GBLEVN10 FOR NEMSIO
 !--AND SUBSEQUENTLY MODIFIED BY FANGLIN YANG AND RUSS TREADON
-                                                   
+
       USE GBLEVN_MODULE
-      USE NEMSIO_MODULE       
+      USE NEMSIO_MODULE
       USE nemsio_openclose
       USE nemsio_read
       USE nemsio_write
@@ -2928,7 +2935,7 @@ C***********************************************************************
       IMPLICIT NONE
       INTEGER IUNITF(2), IDATEP, IM, JM, IDRT
       REAL(KIND=8),PARAMETER:: CON_RV=4.6150E+2,CON_RD=2.8705E+2,
-     $          FV=CON_RV/CON_RD-1.,ONER=1.0,QMIN=1.0E-10         
+     $          FV=CON_RV/CON_RD-1.,ONER=1.0,QMIN=1.0E-10
       INTEGER*4, PARAMETER :: TEN=10
 
       INTEGER*4 IDRTNEMS
@@ -2967,7 +2974,7 @@ C***********************************************************************
 
 C  GET VALID-TIME DATE OF NEMSIO INPUT FILE, ALSO READ HEADERS
 C  -----------------------------------------------------------
-      CALL NEMSIO_INIT()     
+      CALL NEMSIO_INIT()
 
       RINC  = 0
       IDATE = 0
@@ -2994,7 +3001,7 @@ C  -----------------------------------------------------------
       IDATE(5)=IDATE7(4)
 
       ALLOCATE(VCOORD(KMAX+1,3))
-      VCOORD=0.0              
+      VCOORD=0.0
 
       IF(NFSECONDD/=0.AND. NFSECONDD/=-9999) THEN
          FHOUR=REAL(NFHOUR,8)+REAL(NFMINUTE/60.,8)+
@@ -3038,7 +3045,7 @@ C  ----------------------
 C------------------------------------------
 
       SFCPRESS_ID  = MOD(IDVM,TEN)
-      THERMODYN_ID = MOD(IDVM/TEN,TEN)   
+      THERMODYN_ID = MOD(IDVM/TEN,TEN)
 
       IF(IDVC == 3 .AND. THERMODYN_ID == 3) THEN
          KMAXS = (NTRAC+1)*KMAX + 2
@@ -3062,17 +3069,17 @@ C------------------------------------------
 
 C  DEFINE THE OTHER RESOLUTION PARAMETERS
 C  --------------------------------------
- 
+
       JCAP1   = JCAP+1
       JCAP2   = JCAP+2
       JCAP1X2 = JCAP1*2
       MDIMA   = JCAP1*JCAP2
       MDIMB   = MDIMA/2+JCAP1
       MDIMC   = MDIMB*2
- 
+
       DLAT  = 180./(JMAX-1)
       DLON  = 360./IMAX
- 
+
       PRINT 2, JCAP,IMAX,JMAX,KMAX,kmaxs,DLAT,DLON,idvc
 
 ! DAK: is below correct??????????
@@ -3080,7 +3087,7 @@ C  --------------------------------------
      $ I5,' x ',I5,' GRID WITH ',I3,' LEVELS ',I3,
      $' SCALARS -------> ',F5.2,' X ',F5.2,' VERT. ',
      $ 'COORD ID IS: ',I0,' (not sure what this means!')
- 
+
 C***********************************************************************
 
       IROMB = 0
@@ -3239,8 +3246,6 @@ C***********************************************************************
 
 !     print *,'in getnemsio,IAR15U.5,',maxval(IAR15U),minval(IAR15U)
 
-
-
 !--COMPUTE PM AND PD
       ALLOCATE (psfc(imax,jmax), tv(imax,jmax,kmax))
       ALLOCATE (WRK1(imax*jmax,KMAX),  WRK2(imax*jmax,KMAX+1))
@@ -3284,7 +3289,7 @@ C***********************************************************************
             ENDDO
          ENDDO
       ENDDO
-              
+
 !     print*,'GBLEVN12 IARPSI,',maxval(IARPSI),minval(IARPSI)
 !     print*,'GBLEVN12 IARPSL,',maxval(IARPSL),minval(IARPSL)
 
@@ -3297,6 +3302,261 @@ C***********************************************************************
   901 CONTINUE
       PRINT 9901, (JDATE(II),II=1,3),JDATE(5),IDATEP
  9901 FORMAT(/' ##GBLEVENTS/GBLEVN12 - NEMSIO INPUT GLOBAL FILE DATE',
+     $ ' (',I4.4,3(I2.2),'), DOES NOT MATCH PREPBUFR FILE CENTER ',
+     $ 'DATE (',I10,') -STOP 68'/)
+      CALL ERREXIT(68)
+
+      END
+! --------------------------------------------------------------------
+      SUBROUTINE GBLEVN13(IUNITF,IDATEP,IMX,JMX,IDRT) 
+!---------------------------------------------------------
+!--INITIALLY DEVELOPED BY HANG LEI BASED ON GBLEVN10 FOR NETCDF INPUT
+                                                   
+      USE GBLEVN_MODULE
+      use sigio_module
+      use netcdf
+
+      IMPLICIT NONE
+      INTEGER IUNITF(2), IDATEP, IDRT,IMX,JMX
+      INTEGER yyyy,mm,dd,hh
+      integer  :: error, ncid, id_var,dimid, len
+      integer  :: im,jm,km, lm,n, k,nargs
+      REAL(KIND=8),PARAMETER:: CON_RV=4.6150E+2,CON_RD=2.8705E+2,
+     $          FV=CON_RV/CON_RD-1.,ONER=1.0,QMIN=1.0E-10         
+      INTEGER*4, PARAMETER :: TEN=10
+
+      INTEGER*4 IDRTNEMS
+      INTEGER*4 IRET,IMJM4,KM4,IDVM,NTRAC
+
+      INTEGER IDATGS_COR,JCAP,JCAP1,JCAP2,JCAP1X2,MDIMA,MDIMB,MDIMC,
+     $ IROMB,MAXWV,IDIR,I,J,K,L,II,JJ
+
+      INTEGER(4) IDATE7(7),JCAP4,IDVC4,DIMZ4,K4,IM4,JM4,KINDREAL,KINDINT
+      INTEGER(4) NFHOUR,NFMINUTE,NFSECONDN,NFSECONDD,idsl4,idvm4
+      REAL(8) tfac, time
+      REAL(4),ALLOCATABLE :: VCOORD4(:,:,:),CPI(:)
+      REAL,ALLOCATABLE :: temp(:)
+      CHARACTER,ALLOCATABLE :: attone(:)
+      INTEGER nt1, nt2
+      character*(*)     :: gfname
+
+      REAL (KIND=4),ALLOCATABLE :: psfc(:,:), tv(:,:,:),
+     $                             wrk1(:,:), wrk2(:,:)
+
+
+! no time interpolation needed for netcdf input since files are
+!  available every hour - original logic to perform time interpolation
+!  is flawed and has been removed in this revision
+! --------------------------------------------------------------------
+
+      print 331, mod(idatep,100)
+  331 format(/' --> GBLEVENTS: ONLY ONE NETCDF INPUT GLOBAL FILE IS ',
+     $ 'READ SINCE FILES ARE AVAILABLE EACH HOUR (NO NEED TO ',
+     $ 'INTERPOLATE'/16X,'SPANNING FILES WHEN THE PREPBUFR CENTER HOUR',
+     $ ' (',I2.2,') IS NOT A MULTIPLE OF 3)'/)
+
+C  GET VALID-TIME DATE OF NETCDF INPUT FILE, ALSO READ HEADERS
+C  -----------------------------------------------------------
+
+      WRITE(gfname,'("fort.",I2.2)') IUNITF(1)
+
+       error=nf90_open(gfname,nf90_nowrite,ncid)
+       error=nf90_inq_dimid(ncid,"grid_xt",dimid)
+       error=nf90_inquire_dimension(ncid,dimid,dim_nam,im)
+       error=nf90_inq_dimid(ncid,"grid_yt",dimid)
+       error=nf90_inquire_dimension(ncid,dimid,dim_nam,jm)
+       error=nf90_inq_dimid(ncid,"pfull",dimid)
+       error=nf90_inquire_dimension(ncid,dimid,dim_nam,km)
+       error=nf90_inq_dimid(ncid,"phalf",dimid)
+       error=nf90_inquire_dimension(ncid,dimid,dim_nam,lm)
+       print*, "im,jm,kmi,lm:",im,jm,km,lm
+       print*, "IMX, JMX:", IMX, JMX
+      IF (IMX .NE. IM .OR. JMX .NE. JM) print*, "Different Resolutions"
+
+!      error=nf90_inq_varid(ncid, 'pfull', id_var)
+!      error=nf90_get_var(ncid, id_var, )      
+ 
+
+!      CALL W3MOVDAT(RINC,IDATE,JDATE)
+
+
+
+C  VALID DATES MUST MATCH
+C  ----------------------
+      error=nf90_inq_varid(ncid, 'time', id_var)
+      error=nf90_inquire_attribute(ncid, id_var, 'units', len=len)
+      ALLOCATE (attone(len))
+      error=nf90_get_att(ncid, id_var, 'units', attone)
+        read(attone(len-18:len-15),'(i)') yyyy
+        read(attone(len-13:len-12),'(i)') mm
+        read(attone(len-10:len-9),'(i)') dd
+        read(attone(len-7:len-6),'(i)') hh
+      IF(attone(1:5) .NE. "hours") THEN
+      print*, "checkout the time unit, not hourly",attone
+      ELSE
+      print*, "base time", yyyy,mm,dd,hh
+      ENDIF
+       error=nf90_get_var(ncid, id_var, time)
+      IF(INT(time) .LT. 672)THEN
+      nt1=INT(time/24)
+      nt2=INT(time-nt1*24)
+      IDATGS_COR = yyyy*1000000 + mm*10000 + (dd+nt1)*100 + (hh+nt2)
+      ELSE
+      print*, "need to modify the timing code"
+      ENDIF
+
+      IF(IDATEP.NE.IDATGS_COR)  GO TO 901
+
+C------------------------------------------
+
+      ALLOCATE (iar12z(im,jm), iar13p(im,jm))
+      ALLOCATE (iar14t(im,jm,km),  iar15u(im,jm,km),
+     $          iar16v(im,jm,km),  iar17q(im,jm,km),
+     $          iarpsl(im,jm,km),  iarpsi(im,jm,km+1),
+     $          iarpsd(im,jm,km))
+
+      error=nf90_get_att(ncid, NF90_GLOBAL, 'grid', grid)
+      IF (grid == "gaussian")THEN
+        IDRT=4
+      ENDIF
+
+      NVCOORD=2     !for idvc=2, nvcoord=2: hybrid interface a and b
+      IDVC=2        !(1 for sigma and 2 for hybrid)
+      IDSL=2        !(1 for phillips or 2 for mean)
+
+      ALLOCATE(VCOORD(km+1,3))
+      VCOORD=0.0
+
+      error=nf90_get_att(ncid, NF90_GLOBAL, 'ak', VCOORD(:,1))
+      error=nf90_get_att(ncid, NF90_GLOBAL, 'bk', VCOORD(:,1))
+
+
+      allocate(temp(im,jm))
+      allocate(temp3d(im,jm,km))
+      allocate(temp3d2(im,jm,lm))
+
+!
+       error=nf90_inq_varid(ncid, 'hgtsfc', id_var)
+       error=nf90_get_var(ncid, id_var, temp)
+
+         IAR12Z(:,:)=reshape(temp,(/imax,jmax/))
+         call gblevn11d(imax,jmax,IAR12Z)
+
+
+
+       error=nf90_inq_varid(ncid, 'pressfc', id_var)
+       error=nf90_get_var(ncid, id_var, temp)
+
+         IAR13P(:,:)=reshape(temp*0.01,(/imax,jmax/))
+         call gblevn11d(imax,jmax,IAR13P)
+
+      
+       error=nf90_inq_varid(ncid, 'tmp', id_var)
+       error=nf90_get_var(ncid, id_var, temp3d)
+      DO K4=1,km
+            IAR14T(:,:,K4)=reshape(temp3d(:,:,K4),(/imax,jmax/))
+            call gblevn11d(imax,jmax,IAR14T(1,1,K4))
+      ENDDO
+
+
+       error=nf90_inq_varid(ncid, 'ugrd', id_var)
+       error=nf90_get_var(ncid, id_var, temp3d)
+      DO K4=1,km
+            IAR15U(:,:,k4)=reshape(temp3d(:,:,K4),(/imax,jmax/))
+            call gblevn11d(imax,jmax,IAR15U(1,1,K4))
+      ENDDO
+
+       error=nf90_inq_varid(ncid, 'vgrd', id_var)
+       error=nf90_get_var(ncid, id_var, temp3d)
+      DO K4=1,km
+            IAR16V(:,:,k4)=reshape(temp3d(:,:,K4),(/imax,jmax/))
+            call gblevn11d(imax,jmax,IAR16V(1,1,K4))
+      ENDDO
+
+       error=nf90_inq_varid(ncid, 'spfh', id_var)
+       error=nf90_get_var(ncid, id_var, temp3d)
+      DO K4=1,km
+            IAR17Q(:,:,k4)=reshape(temp3d(:,:,K4),(/imax,jmax/))
+            call gblevn11d(imax,jmax,IAR17Q(1,1,K4))
+      ENDDO
+
+!
+      deallocate(temp)
+      deallocate(temp3d)
+      deallocate(temp3d2)
+!
+
+
+!--compute Tv from temp
+      DO K=1,km
+         DO J=1,jm
+            DO i=1,im
+               TFAC=ONER+FV*MAX(IAR17Q(I,J,K)*1.0E-6,QMIN)
+               IAR14T(I,J,K)=IAR14T(I,J,K)*TFAC
+            ENDDO
+         ENDDO
+      ENDDO
+
+!     print *,'in getnemsio,IAR15U.5,',maxval(IAR15U),minval(IAR15U)
+
+
+
+!--COMPUTE PM AND PD
+      ALLOCATE (psfc(im,jm), tv(im,jm,km))
+      ALLOCATE (WRK1(im*jm,km),  WRK2(im*jm,km+1))
+
+      imjm4=im*jm
+      km4=km
+      psfc(:,:) = iar13p(:,:)*100.
+      tv(:,:,:) = iar14t(:,:,:)
+
+      IF(THERMODYN_ID == 3 .AND. IDVC == 3) THEN
+         tv(:,:,:) = tv(:,:,:) / CPI(1)
+         print *,' cpi(1)=',cpi(1)
+      ENDIF
+
+      CALL SIGIO_MODPR(imjm4,imjm4,km4,NVCOORD,IDVC,IDSL,VCOORD,IRET,
+     $ psfc,tv,PM=WRK1,PD=WRK2(1,2))
+      DO J=1,jm
+         JJ = (J-1)*im
+         DO I=1,im
+            WRK2(I+JJ,1) = psfc(i,j)                       ! in Pa
+         ENDDO
+      ENDDO
+      DO L=1,km
+         WRK2(:,L+1) = WRK2(:,L) - WRK2(:,L+1)             ! in Pa
+      ENDDO
+
+      DO L=1,km
+         DO J=1,jm
+            JJ = (J-1)*im
+            DO I=1,im
+               IARPSL(I,J,L) = WRK1(I+JJ,L)*0.01    ! 3D layer pres(hPa)
+            ENDDO
+         ENDDO
+      ENDDO
+      DO L=1,km+1
+         DO J=1,jm
+            JJ = (J-1)*im
+            DO I=1,im
+               IARPSI(I,J,L) = WRK2(I+JJ,L)*0.01 ! 3D interface pressure
+                                                 !  (hPa)
+            ENDDO
+         ENDDO
+      ENDDO
+      
+      nf90_close(ncid)        
+!     print*,'GBLEVN13 IARPSI,',maxval(IARPSI),minval(IARPSI)
+!     print*,'GBLEVN13 IARPSL,',maxval(IARPSL),minval(IARPSL)
+
+!
+      CALL GETLATS(IDRT)
+
+      RETURN
+
+  901 CONTINUE
+      PRINT 9901, (JDATE(II),II=1,3),JDATE(5),IDATEP
+ 9901 FORMAT(/' ##GBLEVENTS/GBLEVN13 - NETCDF INPUT GLOBAL FILE DATE',
      $ ' (',I4.4,3(I2.2),'), DOES NOT MATCH PREPBUFR FILE CENTER ',
      $ 'DATE (',I10,') -STOP 68'/)
       CALL ERREXIT(68)

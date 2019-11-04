@@ -3319,8 +3319,9 @@ C***********************************************************************
       IMPLICIT NONE
       INTEGER IUNITF(2), IDATEP, IDRT,IMX,JMX
       INTEGER yyyy,mm,dd,hh
-      integer  :: error, ncid, id_var,dimid, len
-      integer  :: im,jm,km, lm,n, k,nargs
+      INTEGER*4 ncid
+      integer*4  error, id_var, dimid, len
+      integer*4  im,jm,km, lm,n, k,nargs
       REAL(KIND=8),PARAMETER:: CON_RV=4.6150E+2,CON_RD=2.8705E+2,
      $          FV=CON_RV/CON_RD-1.,ONER=1.0,QMIN=1.0E-10         
       INTEGER*4, PARAMETER :: TEN=10
@@ -3329,16 +3330,18 @@ C***********************************************************************
       INTEGER*4 IRET,IMJM4,KM4,IDVM,NTRAC
 
       INTEGER IDATGS_COR,JCAP,JCAP1,JCAP2,JCAP1X2,MDIMA,MDIMB,MDIMC,
-     $ IROMB,MAXWV,IDIR,I,J,K,L,II,JJ
+     $ IROMB,MAXWV,IDIR,I,J,L,II,JJ
 
       INTEGER(4) IDATE7(7),JCAP4,IDVC4,DIMZ4,K4,IM4,JM4,KINDREAL,KINDINT
       INTEGER(4) NFHOUR,NFMINUTE,NFSECONDN,NFSECONDD,idsl4,idvm4
       REAL(8) tfac, time
       REAL(4),ALLOCATABLE :: VCOORD4(:,:,:),CPI(:)
-      REAL,ALLOCATABLE :: temp(:)
-      CHARACTER,ALLOCATABLE :: attone(:)
+      REAL,ALLOCATABLE :: temp(:,:), temp3d(:,:,:), temp3d2(:,:,:)
+!      CHARACTER,ALLOCATABLE :: attone(:)
+      character (len = 80) :: attone
       INTEGER nt1, nt2
-      character*(*)     :: gfname
+      character(len=10) :: dim_nam, grid
+      CHARACTER*20 gfname
 
       REAL (KIND=4),ALLOCATABLE :: psfc(:,:), tv(:,:,:),
      $                             wrk1(:,:), wrk2(:,:)
@@ -3360,7 +3363,7 @@ C  -----------------------------------------------------------
 
       WRITE(gfname,'("fort.",I2.2)') IUNITF(1)
 
-       error=nf90_open(gfname,nf90_nowrite,ncid)
+       error=nf90_open(trim(gfname),nf90_nowrite,ncid)
        error=nf90_inq_dimid(ncid,"grid_xt",dimid)
        error=nf90_inquire_dimension(ncid,dimid,dim_nam,im)
        error=nf90_inq_dimid(ncid,"grid_yt",dimid)
@@ -3383,10 +3386,10 @@ C  -----------------------------------------------------------
 
 C  VALID DATES MUST MATCH
 C  ----------------------
-      error=nf90_inq_varid(ncid, 'time', id_var)
-      error=nf90_inquire_attribute(ncid, id_var, 'units', len=len)
-      ALLOCATE (attone(len))
-      error=nf90_get_att(ncid, id_var, 'units', attone)
+      error=nf90_inq_varid(ncid, "time", id_var)
+      error=nf90_inquire_attribute(ncid, id_var, "units", len=len)
+!      ALLOCATE (attone(len))
+      error=nf90_get_att(ncid, id_var, "units", attone)
         read(attone(len-18:len-15),'(i)') yyyy
         read(attone(len-13:len-12),'(i)') mm
         read(attone(len-10:len-9),'(i)') dd
@@ -3396,6 +3399,7 @@ C  ----------------------
       ELSE
       print*, "base time", yyyy,mm,dd,hh
       ENDIF
+!      DEALLOCATE (attone)
        error=nf90_get_var(ncid, id_var, time)
       IF(INT(time) .LT. 672)THEN
       nt1=INT(time/24)
@@ -3415,7 +3419,7 @@ C------------------------------------------
      $          iarpsl(im,jm,km),  iarpsi(im,jm,km+1),
      $          iarpsd(im,jm,km))
 
-      error=nf90_get_att(ncid, NF90_GLOBAL, 'grid', grid)
+      error=nf90_get_att(ncid, NF90_GLOBAL, "grid", grid)
       IF (grid == "gaussian")THEN
         IDRT=4
       ENDIF
@@ -3427,8 +3431,8 @@ C------------------------------------------
       ALLOCATE(VCOORD(km+1,3))
       VCOORD=0.0
 
-      error=nf90_get_att(ncid, NF90_GLOBAL, 'ak', VCOORD(:,1))
-      error=nf90_get_att(ncid, NF90_GLOBAL, 'bk', VCOORD(:,1))
+      error=nf90_get_att(ncid, NF90_GLOBAL, "ak", VCOORD(:,1))
+      error=nf90_get_att(ncid, NF90_GLOBAL, "bk", VCOORD(:,1))
 
 
       allocate(temp(im,jm))
@@ -3545,7 +3549,7 @@ C------------------------------------------
          ENDDO
       ENDDO
       
-      nf90_close(ncid)        
+      error=nf90_close(ncid)        
 !     print*,'GBLEVN13 IARPSI,',maxval(IARPSI),minval(IARPSI)
 !     print*,'GBLEVN13 IARPSL,',maxval(IARPSL),minval(IARPSL)
 
@@ -3555,7 +3559,7 @@ C------------------------------------------
       RETURN
 
   901 CONTINUE
-      PRINT 9901, (JDATE(II),II=1,3),JDATE(5),IDATEP
+      PRINT 9901, IDATEP,IDATGS_COR
  9901 FORMAT(/' ##GBLEVENTS/GBLEVN13 - NETCDF INPUT GLOBAL FILE DATE',
      $ ' (',I4.4,3(I2.2),'), DOES NOT MATCH PREPBUFR FILE CENTER ',
      $ 'DATE (',I10,') -STOP 68'/)

@@ -1,13 +1,13 @@
 include("list_of_files.cmake")
 
 if(CMAKE_Fortran_COMPILER_ID MATCHES "^(Intel)$")
-  set(CMAKE_Fortran_FLAGS "-g -traceback -fixed")
+  set(CMAKE_Fortran_FLAGS "-g -traceback -fixed -fPIC")
   set(CMAKE_Fortran_FLAGS_RELEASE "-O2")
   set(fortran_d_flags "-r8")
   set(fortran_8_flags "-i8 -r8")
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$")
   set(CMAKE_Fortran_FLAGS
-      "-g -fno-range-check -fbacktrace -funroll-loops -ffixed-form")
+      "-g -fno-range-check -fbacktrace -funroll-loops -fPIC -ffixed-form")
   set(CMAKE_Fortran_FLAGS_RELEASE "-O2")
   set(CMAKE_Fortran_FLAGS_DEBUG "-ggdb -Wall")
   set(fortran_d_flags "-fdefault-real-8")
